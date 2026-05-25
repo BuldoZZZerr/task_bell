@@ -49,6 +49,26 @@ class AppStrings {
   String get time => isEn ? 'Time' : 'Время';
   String get start => isEn ? 'Start' : 'Начало';
   String get end => isEn ? 'End' : 'Конец';
+  String get reminder => isEn ? 'Reminder' : 'Напоминание';
+  String get reminderSubtitle => isEn
+      ? 'Notification before the task or at a set time'
+      : 'Уведомление до задачи или в выбранное время';
+  String get reminderModeBefore => isEn ? 'Before start' : 'До начала';
+  String get reminderModeAt => isEn ? 'At time' : 'Во сколько';
+  String get reminderNeedsStartTime => isEn
+      ? 'Set start time to use “before start” reminders'
+      : 'Укажите время начала для напоминания «до начала»';
+  String get reminderAtTime => isEn ? 'Notify at' : 'Напомнить в';
+  String get reminderPickTime => isEn ? 'Choose notification time' : 'Выберите время уведомления';
+  String get reminderHourBefore => isEn ? '1 hour before' : 'За 1 час';
+  String get reminderDayBefore => isEn ? '1 day before' : 'За 1 день';
+  String reminderMinutesBefore(int n) =>
+      isEn ? '$n min before' : 'За $n мин';
+  String reminderHoursBefore(int n) =>
+      isEn ? '$n hours before' : 'За $n ч';
+  String get reminderPermissionDenied => isEn
+      ? 'Allow notifications in system settings'
+      : 'Разрешите уведомления в настройках системы';
   String get description => isEn ? 'Description' : 'Описание';
   String get note => isEn ? 'Note' : 'Заметка';
   String get recurrence => isEn ? 'Recurrence' : 'Периодичность';
@@ -76,6 +96,42 @@ class AppStrings {
   String birthdayLabel(String name) =>
       isEn ? 'Birthday: $name' : 'День рождения: $name';
   String dateLabel(String dateStr) => isEn ? 'Date: $dateStr' : 'Дата: $dateStr';
+
+  // Идеи и планы
+  String get ideasAndPlans => isEn ? 'Ideas & plans' : 'Идеи и планы';
+  String get ideasSubtitle => isEn
+      ? 'Movies, music, creative ideas and more'
+      : 'Фильмы, мелодии, творческие задумки и другое';
+  String get addIdea => isEn ? 'Add idea' : 'Добавить идею';
+  String get editIdea => isEn ? 'Edit idea' : 'Редактировать идею';
+  String get ideaTitleHint => isEn ? 'Title' : 'Название';
+  String get ideaNoteHint => isEn ? 'Details (optional)' : 'Подробности (необязательно)';
+  String get enterIdeaTitle => isEn ? 'Enter a title' : 'Введите название';
+  String get ideasEmptyHint => isEn
+      ? 'Save ideas for later:\nfilms to watch, pieces to learn, creative projects…'
+      : 'Сохраняйте задумки на будущее:\nфильмы, мелодии, творческие проекты…';
+  String get filterAll => isEn ? 'All' : 'Все';
+  String get filterActive => isEn ? 'Active' : 'Активные';
+  String get filterDone => isEn ? 'Done' : 'Сделано';
+  String get categoryMovies => isEn ? 'Movies' : 'Фильмы';
+  String get categoryMusic => isEn ? 'Music' : 'Музыка';
+  String get categoryCreative => isEn ? 'Creative' : 'Творчество';
+  String get categoryOther => isEn ? 'Other' : 'Другое';
+  String get markDone => isEn ? 'Mark done' : 'Отметить сделанным';
+  String get markActive => isEn ? 'Mark active' : 'Вернуть в активные';
+
+  String ideaCategoryLabel(int category) {
+    switch (category) {
+      case 0:
+        return categoryMovies;
+      case 1:
+        return categoryMusic;
+      case 2:
+        return categoryCreative;
+      default:
+        return categoryOther;
+    }
+  }
 
   // Расписание уроков
   String get scheduleTitle => isEn ? 'Lesson schedule' : 'Расписание уроков';

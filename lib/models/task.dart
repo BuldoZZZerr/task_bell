@@ -46,6 +46,22 @@ class Task extends HiveObject {
   @HiveField(11)
   final List<int> recurrenceWeekdays;
 
+  /// Включено ли напоминание для задачи.
+  @HiveField(12, defaultValue: false)
+  final bool reminderEnabled;
+
+  /// 0 — за N минут до начала, 1 — в указанное время.
+  @HiveField(13, defaultValue: 0)
+  final int reminderMode;
+
+  /// За сколько минут до начала (если reminderMode == 0).
+  @HiveField(14, defaultValue: 15)
+  final int reminderOffsetMinutes;
+
+  /// Во сколько напомнить, минуты с полуночи (если reminderMode == 1).
+  @HiveField(15)
+  final int? reminderAtMinutes;
+
   Task({
     required this.id,
     required this.subject,
@@ -59,6 +75,10 @@ class Task extends HiveObject {
     this.homework,
     this.recurrence = 0,
     List<int>? recurrenceWeekdays,
+    this.reminderEnabled = false,
+    this.reminderMode = 0,
+    this.reminderOffsetMinutes = 15,
+    this.reminderAtMinutes,
   })  : subtasks = subtasks ?? [],
         recurrenceWeekdays = recurrenceWeekdays ?? const [];
 
@@ -77,6 +97,10 @@ class Task extends HiveObject {
     Object? homework = _omit,
     int? recurrence,
     List<int>? recurrenceWeekdays,
+    bool? reminderEnabled,
+    int? reminderMode,
+    int? reminderOffsetMinutes,
+    Object? reminderAtMinutes = _omit,
   }) {
     return Task(
       id: id ?? this.id,
@@ -91,6 +115,12 @@ class Task extends HiveObject {
       homework: homework == _omit ? this.homework : homework as String?,
       recurrence: recurrence ?? this.recurrence,
       recurrenceWeekdays: recurrenceWeekdays ?? this.recurrenceWeekdays,
+      reminderEnabled: reminderEnabled ?? this.reminderEnabled,
+      reminderMode: reminderMode ?? this.reminderMode,
+      reminderOffsetMinutes: reminderOffsetMinutes ?? this.reminderOffsetMinutes,
+      reminderAtMinutes: reminderAtMinutes == _omit
+          ? this.reminderAtMinutes
+          : reminderAtMinutes as int?,
     );
   }
 }

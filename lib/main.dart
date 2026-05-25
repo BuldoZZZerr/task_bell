@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:task_bell/theme/app_theme.dart';
@@ -6,12 +8,17 @@ import 'package:task_bell/screens/week_screen.dart';
 import 'package:task_bell/screens/calendar_screen.dart';
 import 'package:task_bell/screens/settings_screen.dart';
 import 'package:task_bell/widgets/bottom_navigation.dart';
+import 'package:task_bell/widgets/optimized_background_image.dart';
 import 'package:task_bell/database/hive_service.dart';
 import 'package:task_bell/services/theme_service.dart';
 import 'package:task_bell/services/locale_service.dart';
+import 'package:task_bell/services/notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  final imageCache = PaintingBinding.instance.imageCache;
+  imageCache.maximumSize = 20;
+  imageCache.maximumSizeBytes = 20 << 20;
   await HiveService.init();
   runApp(const MyApp());
 }
@@ -52,23 +59,23 @@ class _MyAppState extends State<MyApp> {
               darkTheme: AppTheme.darkTheme,
               themeMode: isDark ? ThemeMode.dark : ThemeMode.light,
               locale: locale,
-          supportedLocales: const [
-            Locale('ru'),
-            Locale('en'),
-          ],
-          localizationsDelegates: const [
-            GlobalMaterialLocalizations.delegate,
-            GlobalWidgetsLocalizations.delegate,
-            GlobalCupertinoLocalizations.delegate,
-          ],
-          debugShowCheckedModeBanner: false,
-          home: const MainScreen(),
+              supportedLocales: const [
+                Locale('ru'),
+                Locale('en'),
+              ],
+              localizationsDelegates: const [
+                GlobalMaterialLocalizations.delegate,
+                GlobalWidgetsLocalizations.delegate,
+                GlobalCupertinoLocalizations.delegate,
+              ],
+              debugShowCheckedModeBanner: false,
+              home: const MainScreen(),
             );
           },
         );
       },
     );
-  } 
+  }
 }
 
 class MainScreen extends StatefulWidget {
@@ -80,13 +87,6 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
-
-  final List<Widget> _screens = [
-    const TodayScreen(),
-    const WeekScreen(),
-    const CalendarScreen(),
-    const SettingsScreen(),
-  ];
 
   static const List<String> _backgroundLight = [
     'assets/bgs/light/today_light.png',
@@ -101,25 +101,75 @@ class _MainScreenState extends State<MainScreen> {
     'assets/bgs/dark/settings_dark.png',
   ];
 
-  bool _assetsPrecached = false;
+  String? _lastPrecachedPath;
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (_assetsPrecached) return;
-    _assetsPrecached = true;
-    for (final path in _backgroundLight) {
-      precacheImage(AssetImage(path), context);
-    }
-    for (final path in _backgroundDark) {
-      precacheImage(AssetImage(path), context);
-    }
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _precacheCurrentBackground();
+      _bootstrapNotificationsLater();
+    });
+    ThemeService.isDarkTheme.addListener(_onThemeChanged);
+  }
+
+  @override
+  void dispose() {
+    ThemeService.isDarkTheme.removeListener(_onThemeChanged);
+    super.dispose();
+  }
+
+  void _onThemeChanged() {
+    if (!mounted) return;
+    _precacheCurrentBackground();
+  }
+
+  void _bootstrapNotificationsLater() {
+    Future<void>.delayed(const Duration(seconds: 5), () async {
+      try {
+        await NotificationService.instance.init();
+        await NotificationService.instance.rescheduleAllIfNeeded();
+      } catch (e, st) {
+        debugPrint('Notification bootstrap failed: $e\n$st');
+      }
+    });
+  }
+
+  void _precacheCurrentBackground() {
+    if (!mounted) return;
+    final isDark = ThemeService.isDarkTheme.value;
+    final path = isDark
+        ? _backgroundDark[_currentIndex]
+        : _backgroundLight[_currentIndex];
+    if (_lastPrecachedPath == path) return;
+    _lastPrecachedPath = path;
+    precacheImage(
+      OptimizedBackgroundImage.resizedProvider(context, path),
+      context,
+    );
   }
 
   void _onTabTapped(int index) {
-    setState(() {
-      _currentIndex = index;
+    if (_currentIndex == index) return;
+    setState(() => _currentIndex = index);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _precacheCurrentBackground();
     });
+  }
+
+  Widget _screenForIndex(int index) {
+    switch (index) {
+      case 0:
+        return const TodayScreen();
+      case 1:
+        return const WeekScreen();
+      case 2:
+        return const CalendarScreen();
+      case 3:
+        return const SettingsScreen();
+      default:
+        return const TodayScreen();
+    }
   }
 
   @override
@@ -130,33 +180,14 @@ class _MainScreenState extends State<MainScreen> {
         final bgAsset = isDark
             ? _backgroundDark[_currentIndex]
             : _backgroundLight[_currentIndex];
-        final fallbackAsset = _currentIndex == 0
-            ? (isDark ? _backgroundDark[1] : _backgroundLight[1])
-            : null;
         return Scaffold(
           body: Stack(
             fit: StackFit.expand,
             children: [
-              Image.asset(
-                bgAsset,
-                key: ValueKey(bgAsset),
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) {
-                  if (fallbackAsset != null) {
-                    return Image.asset(
-                      fallbackAsset,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) => Container(
-                        color: isDark ? const Color(0xFF121212) : const Color(0xFFF5F5F5),
-                      ),
-                    );
-                  }
-                  return Container(
-                    color: isDark ? const Color(0xFF121212) : const Color(0xFFF5F5F5),
-                  );
-                },
+              RepaintBoundary(
+                child: OptimizedBackgroundImage(assetPath: bgAsset),
               ),
-              _screens[_currentIndex],
+              _screenForIndex(_currentIndex),
             ],
           ),
           bottomNavigationBar: AppBottomNavigation(

@@ -6,7 +6,6 @@ import 'package:task_bell/widgets/birthday_card.dart';
 import 'package:task_bell/screens/add_task_screen.dart';
 import 'package:task_bell/services/task_service.dart';
 import 'package:task_bell/services/birthday_service.dart';
-import 'package:hive_flutter/hive_flutter.dart';
 import 'package:task_bell/database/hive_service.dart';
 
 class TodayScreen extends StatefulWidget {
@@ -28,16 +27,12 @@ class _TodayScreenState extends State<TodayScreen> {
   }
 
   Future<void> _showAddTaskScreen() async {
-    final result = await Navigator.push<bool>(
+    await Navigator.push<bool>(
       context,
       MaterialPageRoute(
         builder: (context) => AddTaskScreen(selectedDate: _selectedDate),
       ),
     );
-
-    if (result == true && mounted) {
-      setState(() {});
-    }
   }
 
   @override
@@ -61,76 +56,80 @@ class _TodayScreenState extends State<TodayScreen> {
             ),
             // Birthdays + Tasks List
             Expanded(
-              child: ValueListenableBuilder(
-                valueListenable: HiveService.birthdaysBox.listenable(),
-                builder: (context, _, _) {
+              child: ListenableBuilder(
+                listenable: HiveService.tasksAndBirthdaysListenable(),
+                builder: (context, _) {
                   final birthdays =
                       _birthdayService.getBirthdaysForDate(_selectedDate);
-                  return ValueListenableBuilder(
-                    valueListenable: HiveService.tasksBox.listenable(),
-                    builder: (context, box, _) {
-                      final tasks = _taskService.getTasksForDate(_selectedDate);
-                      if (tasks.isEmpty && birthdays.isEmpty) {
-                        return Center(
-                          child: Text(
-                            AppStrings.of(context).noScheduleForDay,
-                            style: TextStyle(
-                              fontSize: 16,
-                              color: Colors.grey[600],
-                            ),
-                          ),
+                  final tasks = _taskService.getTasksForDate(_selectedDate);
+                  if (tasks.isEmpty && birthdays.isEmpty) {
+                    return Center(
+                      child: Text(
+                        AppStrings.of(context).noScheduleForDay,
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                    );
+                  }
+                  final itemCount = birthdays.length + tasks.length;
+                  return ListView.builder(
+                    padding: const EdgeInsets.only(bottom: 80),
+                    itemCount: itemCount,
+                    itemBuilder: (context, index) {
+                      if (index < birthdays.length) {
+                        final b = birthdays[index];
+                        return BirthdayCard(
+                          name: b.name,
+                          note: b.note,
+                          onHide: () async {
+                            await _birthdayService.hideForYear(
+                              b,
+                              _selectedDate.year,
+                            );
+                          },
                         );
                       }
-                      return ListView(
-                        padding: const EdgeInsets.only(bottom: 80),
-                        children: [
-                          // Birthdays on top
-                          for (final b in birthdays)
-                            BirthdayCard(
-                              name: b.name,
-                              note: b.note,
-                              onHide: () async {
-                                await _birthdayService.hideForYear(
-                                  b,
-                                  _selectedDate.year,
-                                );
-                              },
-                            ),
-                          // Tasks
-                          for (final task in tasks)
-                            Padding(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 16, vertical: 8),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(12),
-                                child: Dismissible(
-                                  key: Key(task.id),
-                                  direction: DismissDirection.endToStart,
-                                  background: const SizedBox.expand(),
-                                onDismissed: (_) =>
-                                    _taskService.deleteTask(task.id),
-                                child: TaskCard(
-                                  margin: EdgeInsets.zero,
+                      final task = tasks[index - birthdays.length];
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 8),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: Dismissible(
+                            key: Key(task.id),
+                            direction: DismissDirection.endToStart,
+                            background: const SizedBox.expand(),
+                            onDismissed: (_) =>
+                                _taskService.deleteTask(task.id),
+                            child: TaskCard(
+                              margin: EdgeInsets.zero,
                               subject: task.subject,
                               description: task.description,
                               homework: task.homework ?? '',
                               isDone: task.isDone,
-                              timeText: DateFormatter.formatTimeRangeFromMinutes(
+                              timeText:
+                                  DateFormatter.formatTimeRangeFromMinutes(
                                 task.timeMinutes,
                                 task.endTimeMinutes,
                               ),
                               onToggleDone: () async {
                                 final updated =
                                     task.copyWith(isDone: !task.isDone);
-                                await _taskService.updateTask(updated);
+                                await _taskService.updateTask(
+                                  updated,
+                                  syncReminder: false,
+                                );
                               },
                               onHomeworkChanged: (text) async {
-                                final updated =
-                                    task.copyWith(homework: text);
-                                await _taskService.updateTask(updated);
+                                await _taskService.updateTask(
+                                  task.copyWith(homework: text),
+                                  syncReminder: false,
+                                );
                               },
-                              onEdit: () async {
-                                final result = await Navigator.push<bool>(
+                              onEdit: () {
+                                Navigator.push<bool>(
                                   context,
                                   MaterialPageRoute(
                                     builder: (context) => AddTaskScreen(
@@ -139,15 +138,10 @@ class _TodayScreenState extends State<TodayScreen> {
                                     ),
                                   ),
                                 );
-                                if (result == true && mounted) {
-                                  setState(() {});
-                                }
                               },
                             ),
-                            ),
-                            ),
-                            ),
-                        ],
+                          ),
+                        ),
                       );
                     },
                   );

@@ -6,7 +6,6 @@ import 'package:task_bell/screens/add_task_screen.dart';
 import 'package:task_bell/services/task_service.dart';
 import 'package:task_bell/services/birthday_service.dart';
 import 'package:task_bell/services/recurrence_completion_service.dart';
-import 'package:hive_flutter/hive_flutter.dart';
 import 'package:task_bell/database/hive_service.dart';
 import 'package:task_bell/localization/app_strings.dart';
 
@@ -40,20 +39,14 @@ class DayTasksScreen extends StatelessWidget {
         ),
         centerTitle: true,
       ),
-      body: ValueListenableBuilder(
-        valueListenable: HiveService.birthdaysBox.listenable(),
-        builder: (context, birthdaysBox, _) {
+      body: ListenableBuilder(
+        listenable: HiveService.tasksBirthdaysCompletionsListenable(),
+        builder: (context, _) {
           final birthdays =
               birthdayService.getBirthdaysForDate(selectedDate);
-          return ValueListenableBuilder(
-            valueListenable: HiveService.tasksBox.listenable(),
-            builder: (context, tasksBox, _) {
-              return ValueListenableBuilder(
-                valueListenable: HiveService.recurrenceCompletionsBox.listenable(),
-                builder: (context, completionsBox, _) {
-                  final tasks = taskService.getTasksForDate(selectedDate);
+          final tasks = taskService.getTasksForDate(selectedDate);
 
-                  if (tasks.isEmpty && birthdays.isEmpty) {
+          if (tasks.isEmpty && birthdays.isEmpty) {
                     return Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -123,12 +116,17 @@ class DayTasksScreen extends StatelessWidget {
                                 task,
                                 selectedDate,
                                 !nowDone,
-                                updateTask: taskService.updateTask,
+                                updateTask: (t) => taskService.updateTask(
+                                  t,
+                                  syncReminder: false,
+                                ),
                               );
                             },
                             onHomeworkChanged: (text) async {
-                              final updated = task.copyWith(homework: text);
-                              await taskService.updateTask(updated);
+                              await taskService.updateTask(
+                                task.copyWith(homework: text),
+                                syncReminder: false,
+                              );
                             },
                             onEdit: () async {
                               final result = await Navigator.push<bool>(
@@ -148,10 +146,6 @@ class DayTasksScreen extends StatelessWidget {
                         ),
                     ],
                   );
-                },
-              );
-            },
-          );
         },
       ),
       floatingActionButton: FloatingActionButton(

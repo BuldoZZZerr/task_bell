@@ -7,7 +7,6 @@ import 'package:task_bell/services/task_service.dart';
 import 'package:task_bell/services/birthday_service.dart';
 import 'package:task_bell/services/recurrence_completion_service.dart';
 import 'package:task_bell/utils/date_formatter.dart';
-import 'package:hive_flutter/hive_flutter.dart';
 import 'package:task_bell/database/hive_service.dart';
 import 'package:task_bell/localization/app_strings.dart';
 
@@ -32,16 +31,12 @@ class _WeekScreenState extends State<WeekScreen> {
   }
 
   Future<void> _showAddTaskScreen() async {
-    final result = await Navigator.push<bool>(
+    await Navigator.push<bool>(
       context,
       MaterialPageRoute(
         builder: (context) => AddTaskScreen(selectedDate: _selectedDate),
       ),
     );
-
-    if (result == true && mounted) {
-      setState(() {});
-    }
   }
 
   List<DateTime> _generateWeekDates(DateTime date) {
@@ -95,105 +90,108 @@ class _WeekScreenState extends State<WeekScreen> {
             ),
             // Birthdays + Tasks List
             Expanded(
-              child: ValueListenableBuilder(
-                valueListenable: HiveService.birthdaysBox.listenable(),
-                builder: (context, birthdaysBox, _) {
+              child: ListenableBuilder(
+                listenable: HiveService.tasksBirthdaysCompletionsListenable(),
+                builder: (context, _) {
                   final birthdays =
                       _birthdayService.getBirthdaysForDate(_selectedDate);
-                  return ValueListenableBuilder(
-                    valueListenable: HiveService.tasksBox.listenable(),
-                    builder: (context, tasksBox, _) {
-                      return ValueListenableBuilder(
-                        valueListenable: HiveService.recurrenceCompletionsBox.listenable(),
-                        builder: (context, completionsBox, _) {
-                          final tasks = _taskService.getTasksForDate(_selectedDate);
-                          if (tasks.isEmpty && birthdays.isEmpty) {
-                            return Center(
-                              child: Text(
-                                AppStrings.of(context).noScheduleForDay,
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  color: Colors.grey[600],
-                                ),
-                              ),
+                  final tasks = _taskService.getTasksForDate(_selectedDate);
+                  if (tasks.isEmpty && birthdays.isEmpty) {
+                    return Center(
+                      child: Text(
+                        AppStrings.of(context).noScheduleForDay,
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                    );
+                  }
+                  final itemCount = birthdays.length + tasks.length;
+                  return ListView.builder(
+                    padding: const EdgeInsets.only(bottom: 80),
+                    itemCount: itemCount,
+                    itemBuilder: (context, index) {
+                      if (index < birthdays.length) {
+                        final b = birthdays[index];
+                        return BirthdayCard(
+                          name: b.name,
+                          note: b.note,
+                          onHide: () async {
+                            await _birthdayService.hideForYear(
+                              b,
+                              _selectedDate.year,
                             );
-                          }
-                          return ListView(
-                            padding: const EdgeInsets.only(bottom: 80),
-                            children: [
-                              for (final b in birthdays)
-                                BirthdayCard(
-                                  name: b.name,
-                                  note: b.note,
-                                  onHide: () async {
-                                    await _birthdayService.hideForYear(
-                                      b,
-                                      _selectedDate.year,
-                                    );
-                                  },
-                                  onNoteChanged: (text) async {
-                                    await _birthdayService.updateBirthday(
-                                      b.copyWith(note: text.isEmpty ? null : text),
-                                    );
-                                  },
-                                ),
-                              for (final task in tasks)
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 16, vertical: 8),
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(12),
-                                    child: Dismissible(
-                                      key: Key(task.id),
-                                      direction: DismissDirection.endToStart,
-                                      background: const SizedBox.expand(),
-                                    onDismissed: (_) =>
-                                        _taskService.deleteTask(task.id),
-                                    child: TaskCard(
-                                      margin: EdgeInsets.zero,
-                                  subject: task.subject,
-                                  description: task.description,
-                                  homework: task.homework ?? '',
-                                  isDone: RecurrenceCompletionService.isDoneForDate(task, _selectedDate),
-                                  timeText: DateFormatter.formatTimeRangeFromMinutes(
-                                    task.timeMinutes,
-                                    task.endTimeMinutes,
+                          },
+                          onNoteChanged: (text) async {
+                            await _birthdayService.updateBirthday(
+                              b.copyWith(note: text.isEmpty ? null : text),
+                            );
+                          },
+                        );
+                      }
+                      final task = tasks[index - birthdays.length];
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 8),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: Dismissible(
+                            key: Key(task.id),
+                            direction: DismissDirection.endToStart,
+                            background: const SizedBox.expand(),
+                            onDismissed: (_) =>
+                                _taskService.deleteTask(task.id),
+                            child: TaskCard(
+                              margin: EdgeInsets.zero,
+                              subject: task.subject,
+                              description: task.description,
+                              homework: task.homework ?? '',
+                              isDone: RecurrenceCompletionService.isDoneForDate(
+                                task,
+                                _selectedDate,
+                              ),
+                              timeText:
+                                  DateFormatter.formatTimeRangeFromMinutes(
+                                task.timeMinutes,
+                                task.endTimeMinutes,
+                              ),
+                              onToggleDone: () async {
+                                final nowDone =
+                                    RecurrenceCompletionService.isDoneForDate(
+                                  task,
+                                  _selectedDate,
+                                );
+                                await RecurrenceCompletionService.setDoneForDate(
+                                  task,
+                                  _selectedDate,
+                                  !nowDone,
+                                  updateTask: (t) => _taskService.updateTask(
+                                    t,
+                                    syncReminder: false,
                                   ),
-                                  onToggleDone: () async {
-                                    final nowDone = RecurrenceCompletionService.isDoneForDate(task, _selectedDate);
-                                    await RecurrenceCompletionService.setDoneForDate(
-                                      task,
-                                      _selectedDate,
-                                      !nowDone,
-                                      updateTask: _taskService.updateTask,
-                                    );
-                                  },
-                                  onHomeworkChanged: (text) async {
-                                    final updated =
-                                        task.copyWith(homework: text);
-                                    await _taskService.updateTask(updated);
-                                  },
-                                  onEdit: () async {
-                                    final result = await Navigator.push<bool>(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) => AddTaskScreen(
-                                          selectedDate: _selectedDate,
-                                          existingTask: task,
-                                        ),
-                                      ),
-                                    );
-                                    if (result == true && mounted) {
-                                      setState(() {});
-                                    }
-                                  },
-                                ),
-                                ),
-                                ),
-                                ),
-                            ],
-                          );
-                        },
+                                );
+                              },
+                              onHomeworkChanged: (text) async {
+                                await _taskService.updateTask(
+                                  task.copyWith(homework: text),
+                                  syncReminder: false,
+                                );
+                              },
+                              onEdit: () {
+                                Navigator.push<bool>(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => AddTaskScreen(
+                                      selectedDate: _selectedDate,
+                                      existingTask: task,
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                        ),
                       );
                     },
                   );

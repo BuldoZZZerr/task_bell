@@ -29,13 +29,17 @@ class TaskAdapter extends TypeAdapter<Task> {
       homework: fields[8] as String?,
       recurrence: fields[10] as int,
       recurrenceWeekdays: (fields[11] as List?)?.cast<int>(),
+      reminderEnabled: fields[12] == null ? false : fields[12] as bool,
+      reminderMode: fields[13] == null ? 0 : fields[13] as int,
+      reminderOffsetMinutes: fields[14] == null ? 15 : fields[14] as int,
+      reminderAtMinutes: fields[15] as int?,
     );
   }
 
   @override
   void write(BinaryWriter writer, Task obj) {
     writer
-      ..writeByte(12)
+      ..writeByte(16)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -59,7 +63,15 @@ class TaskAdapter extends TypeAdapter<Task> {
       ..writeByte(10)
       ..write(obj.recurrence)
       ..writeByte(11)
-      ..write(obj.recurrenceWeekdays);
+      ..write(obj.recurrenceWeekdays)
+      ..writeByte(12)
+      ..write(obj.reminderEnabled)
+      ..writeByte(13)
+      ..write(obj.reminderMode)
+      ..writeByte(14)
+      ..write(obj.reminderOffsetMinutes)
+      ..writeByte(15)
+      ..write(obj.reminderAtMinutes);
   }
 
   @override

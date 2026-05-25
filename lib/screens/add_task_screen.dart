@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:task_bell/models/task.dart';
+import 'package:task_bell/services/notification_service.dart';
 import 'package:task_bell/services/task_service.dart';
 import 'package:task_bell/localization/app_strings.dart';
+import 'package:task_bell/widgets/task_reminder_section.dart';
 
 class AddTaskScreen extends StatefulWidget {
   final DateTime selectedDate;
@@ -25,6 +27,10 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
   int? _endTimeMinutes;
   // 0 - без повтора, 1 - каждый день, 2 - каждую неделю, 3 - раз в месяц, 4 - раз в год
   int _recurrence = 0;
+  bool _reminderEnabled = false;
+  int _reminderMode = 0;
+  int _reminderOffsetMinutes = 15;
+  int? _reminderAtMinutes;
 
   @override
   void initState() {
@@ -36,6 +42,10 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
       _startTimeMinutes = widget.existingTask!.timeMinutes;
       _endTimeMinutes = widget.existingTask!.endTimeMinutes;
       _recurrence = widget.existingTask!.recurrence;
+      _reminderEnabled = widget.existingTask!.reminderEnabled;
+      _reminderMode = widget.existingTask!.reminderMode;
+      _reminderOffsetMinutes = widget.existingTask!.reminderOffsetMinutes;
+      _reminderAtMinutes = widget.existingTask!.reminderAtMinutes;
     }
   }
 
@@ -91,12 +101,63 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
     return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}';
   }
 
-  void _saveTask() {
+  Future<void> _pickReminderTime() async {
+    final initial = _reminderAtMinutes != null
+        ? TimeOfDay(
+            hour: _reminderAtMinutes! ~/ 60,
+            minute: _reminderAtMinutes! % 60,
+          )
+        : (_startTimeMinutes != null
+            ? TimeOfDay(
+                hour: _startTimeMinutes! ~/ 60,
+                minute: _startTimeMinutes! % 60,
+              )
+            : TimeOfDay.now());
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: initial,
+      builder: (context, child) {
+        return MediaQuery(
+          data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
+          child: child!,
+        );
+      },
+    );
+    if (picked != null && mounted) {
+      setState(() {
+        _reminderAtMinutes = picked.hour * 60 + picked.minute;
+      });
+    }
+  }
+
+  Future<void> _saveTask() async {
+    final s = AppStrings.of(context);
     if (_taskNameController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(AppStrings.of(context).enterTaskName)),
+        SnackBar(content: Text(s.enterTaskName)),
       );
       return;
+    }
+
+    if (_reminderEnabled) {
+      if (_reminderMode == 0 && _startTimeMinutes == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(s.reminderNeedsStartTime)),
+        );
+        return;
+      }
+      if (_reminderMode == 1 && _reminderAtMinutes == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(s.reminderPickTime)),
+        );
+        return;
+      }
+      final granted = await NotificationService.instance.requestPermission();
+      if (!granted && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(s.reminderPermissionDenied)),
+        );
+      }
     }
 
     final description = _descriptionController.text.trim();
@@ -110,6 +171,10 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
             timeMinutes: _startTimeMinutes,
             endTimeMinutes: _endTimeMinutes,
             recurrence: _recurrence,
+            reminderEnabled: _reminderEnabled,
+            reminderMode: _reminderMode,
+            reminderOffsetMinutes: _reminderOffsetMinutes,
+            reminderAtMinutes: _reminderAtMinutes,
           )
         : Task(
             id: DateTime.now().millisecondsSinceEpoch.toString(),
@@ -120,15 +185,19 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
             timeMinutes: _startTimeMinutes,
             endTimeMinutes: _endTimeMinutes,
             recurrence: _recurrence,
+            reminderEnabled: _reminderEnabled,
+            reminderMode: _reminderMode,
+            reminderOffsetMinutes: _reminderOffsetMinutes,
+            reminderAtMinutes: _reminderAtMinutes,
           );
 
     if (widget.existingTask != null) {
-      TaskService().updateTask(task);
+      await TaskService().updateTask(task);
     } else {
-      TaskService().addTask(task);
+      await TaskService().addTask(task);
     }
 
-    Navigator.of(context).pop(true);
+    if (mounted) Navigator.of(context).pop(true);
   }
 
   @override
@@ -274,6 +343,24 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
                         ),
                       ],
                     ),
+                  ),
+                  const SizedBox(height: 16),
+                  TaskReminderSection(
+                    enabled: _reminderEnabled,
+                    mode: _reminderMode,
+                    offsetMinutes: _reminderOffsetMinutes,
+                    atMinutes: _reminderAtMinutes,
+                    hasStartTime: _startTimeMinutes != null,
+                    onEnabledChanged: (value) async {
+                      if (value) {
+                        await NotificationService.instance.init();
+                      }
+                      setState(() => _reminderEnabled = value);
+                    },
+                    onModeChanged: (mode) => setState(() => _reminderMode = mode),
+                    onOffsetChanged: (minutes) =>
+                        setState(() => _reminderOffsetMinutes = minutes),
+                    onAtTimePick: _pickReminderTime,
                   ),
                   const SizedBox(height: 16),
                   // Description

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:task_bell/database/hive_service.dart';
 import 'package:task_bell/models/schedule_slot.dart';
 import 'package:task_bell/models/task.dart';
+import 'package:task_bell/services/notification_service.dart';
 import 'package:task_bell/services/task_service.dart';
 
 class ScheduleService {
@@ -34,6 +35,7 @@ class ScheduleService {
         .map((t) => t.id)
         .toList();
     for (final id in toRemove) {
+      await NotificationService.instance.cancelTaskReminders(id);
       await box.delete(id);
     }
   }
@@ -68,9 +70,14 @@ class ScheduleService {
         endTimeMinutes: slot.endMinutes,
         recurrence: 2,
         recurrenceWeekdays: [slot.weekday],
+        reminderEnabled: slot.reminderEnabled,
+        reminderMode: slot.reminderMode,
+        reminderOffsetMinutes: slot.reminderOffsetMinutes,
+        reminderAtMinutes: slot.reminderAtMinutes,
       );
-      await taskService.addTask(task);
+      await taskService.addTask(task, syncReminder: false);
     }
+    await NotificationService.instance.rescheduleAll();
   }
 
   static bool hasScheduleTasks() {

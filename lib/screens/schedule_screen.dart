@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:task_bell/models/schedule_slot.dart';
+import 'package:task_bell/services/notification_service.dart';
 import 'package:task_bell/services/schedule_service.dart';
+import 'package:task_bell/widgets/task_reminder_section.dart';
 import 'package:task_bell/theme/app_theme.dart';
 import 'package:task_bell/utils/date_formatter.dart';
 import 'package:task_bell/localization/app_strings.dart';
@@ -325,6 +327,10 @@ class _ScheduleSlotDialogState extends State<_ScheduleSlotDialog> {
   late int _startMinutes;
   late int _endMinutes;
   final _subjectController = TextEditingController();
+  bool _reminderEnabled = false;
+  int _reminderMode = 0;
+  int _reminderOffsetMinutes = 15;
+  int? _reminderAtMinutes;
 
   bool get _dayFixed => widget.fixedWeekday != null;
 
@@ -336,6 +342,10 @@ class _ScheduleSlotDialogState extends State<_ScheduleSlotDialog> {
     _startMinutes = i?.startMinutes ?? 9 * 60;
     _endMinutes = i?.endMinutes ?? 10 * 60;
     _subjectController.text = i?.subject ?? '';
+    _reminderEnabled = i?.reminderEnabled ?? false;
+    _reminderMode = i?.reminderMode ?? 0;
+    _reminderOffsetMinutes = i?.reminderOffsetMinutes ?? 15;
+    _reminderAtMinutes = i?.reminderAtMinutes;
   }
 
   @override
@@ -363,6 +373,25 @@ class _ScheduleSlotDialogState extends State<_ScheduleSlotDialog> {
     }
   }
 
+  Future<void> _pickReminderTime() async {
+    final t = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay(
+        hour: (_reminderAtMinutes ?? _startMinutes) ~/ 60,
+        minute: (_reminderAtMinutes ?? _startMinutes) % 60,
+      ),
+      builder: (context, child) {
+        return MediaQuery(
+          data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
+          child: child!,
+        );
+      },
+    );
+    if (t != null && mounted) {
+      setState(() => _reminderAtMinutes = t.hour * 60 + t.minute);
+    }
+  }
+
   Future<void> _pickEndTime() async {
     final t = await showTimePicker(
       context: context,
@@ -382,19 +411,35 @@ class _ScheduleSlotDialogState extends State<_ScheduleSlotDialog> {
     }
   }
 
-  void _submit() {
+  Future<void> _submit() async {
+    final s = AppStrings.of(context);
     final subject = _subjectController.text.trim();
     if (subject.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(AppStrings.of(context).enterSubjectName)),
+        SnackBar(content: Text(s.enterSubjectName)),
       );
       return;
     }
+    if (_reminderEnabled) {
+      if (_reminderMode == 1 && _reminderAtMinutes == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(s.reminderPickTime)),
+        );
+        return;
+      }
+      await NotificationService.instance.init();
+      await NotificationService.instance.requestPermission();
+    }
+    if (!mounted) return;
     Navigator.of(context).pop(ScheduleSlot(
       weekday: _weekday,
       startMinutes: _startMinutes,
       endMinutes: _endMinutes,
       subject: subject,
+      reminderEnabled: _reminderEnabled,
+      reminderMode: _reminderMode,
+      reminderOffsetMinutes: _reminderOffsetMinutes,
+      reminderAtMinutes: _reminderAtMinutes,
     ));
   }
 
@@ -458,6 +503,19 @@ class _ScheduleSlotDialogState extends State<_ScheduleSlotDialog> {
                   ),
                 ),
               ],
+            ),
+            const SizedBox(height: 16),
+            TaskReminderSection(
+              enabled: _reminderEnabled,
+              mode: _reminderMode,
+              offsetMinutes: _reminderOffsetMinutes,
+              atMinutes: _reminderAtMinutes,
+              hasStartTime: true,
+              onEnabledChanged: (value) => setState(() => _reminderEnabled = value),
+              onModeChanged: (mode) => setState(() => _reminderMode = mode),
+              onOffsetChanged: (minutes) =>
+                  setState(() => _reminderOffsetMinutes = minutes),
+              onAtTimePick: _pickReminderTime,
             ),
           ],
         ),

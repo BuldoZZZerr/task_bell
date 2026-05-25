@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:task_bell/screens/birthdays_screen.dart';
+import 'package:task_bell/screens/ideas_screen.dart';
 import 'package:task_bell/screens/schedule_screen.dart';
 import 'package:task_bell/services/theme_service.dart';
 import 'package:task_bell/services/locale_service.dart';
@@ -96,6 +97,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
             },
           ),
           _SettingsTile(
+            leading: Icon(Icons.lightbulb_outline, color: theme.iconTheme.color),
+            title: Text(s.ideasAndPlans),
+            subtitle: Text(
+              s.ideasSubtitle,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            trailing: Icon(Icons.chevron_right, color: theme.iconTheme.color),
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const IdeasScreen(),
+                ),
+              );
+            },
+          ),
+          _SettingsTile(
             leading: Icon(Icons.dark_mode, color: theme.iconTheme.color),
             title: Text(s.darkTheme),
             trailing: Switch(
@@ -154,29 +173,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
 class _SettingsTile extends StatelessWidget {
   final Widget leading;
   final Widget title;
+  final Widget? subtitle;
   final Widget trailing;
   final VoidCallback? onTap;
 
   const _SettingsTile({
     required this.leading,
     required this.title,
+    this.subtitle,
     required this.trailing,
     this.onTap,
   });
 
-  static const double _tileHeight = 56;
-
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: _tileHeight,
-      child: ListTile(
-        leading: leading,
-        title: title,
-        trailing: trailing,
-        onTap: onTap,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
-      ),
+    return ListTile(
+      leading: leading,
+      title: title,
+      subtitle: subtitle,
+      trailing: trailing,
+      onTap: onTap,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
     );
   }
 }
